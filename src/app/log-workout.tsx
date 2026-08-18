@@ -1,27 +1,33 @@
 import { useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Card } from '@/components/card';
+import { SectionHeader } from '@/components/section-header';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import { addCustomExercise, getCustomExercises, MY_EXERCISES_CATEGORY } from '@/lib/custom-exercises';
 import { CATEGORIES, EXERCISES } from '@/lib/exercises';
 import { computePRs, feedbackForCardioSet, feedbackForStrengthSet, SetFeedback } from '@/lib/pr-utils';
 import { saveSession, getSessions } from '@/lib/storage';
-import { CardioSet, Exercise, LoggedExercise, PersonalRecord, StrengthSet } from '@/lib/types';
+import { CardioSet, Exercise, ExerciseType, LoggedExercise, PersonalRecord, StrengthSet } from '@/lib/types';
+import { useTheme } from '@/hooks/use-theme';
 
 function makeId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
+
+const ALL_CATEGORIES = [...CATEGORIES, MY_EXERCISES_CATEGORY];
 
 export default function LogWorkoutScreen() {
   const theme = useTheme();
   const router = useRouter();
 
   const [prs, setPrs] = useState<Record<string, PersonalRecord>>({});
-  const [category, setCategory] = useState<string>(CATEGORIES[0]);
+  const [customExercises, setCustomExercises] = useState<Exercise[]>([]);
+  const [category, setCategory] = useState<string>(ALL_CATEGORIES[0]);
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
   const [strengthSets, setStrengthSets] = useState<StrengthSet[]>([]);
   const [cardioSets, setCardioSets] = useState<CardioSet[]>([]);
@@ -33,14 +39,23 @@ export default function LogWorkoutScreen() {
   const [lastFeedback, setLastFeedback] = useState<SetFeedback | null>(null);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
+  const [showCustomForm, setShowCustomForm] = useState(false);
+  const [customName, setCustomName] = useState('');
+  const [customType, setCustomType] = useState<ExerciseType>('strength');
+
+  const refreshPRs = useCallback(() => {
     getSessions().then((sessions) => setPrs(computePRs(sessions)));
   }, []);
 
-  const exercisesInCategory = useMemo(
-    () => EXERCISES.filter((e) => e.category === category),
-    [category]
-  );
+  useEffect(() => {
+    refreshPRs();
+    getCustomExercises().then(setCustomExercises);
+  }, [refreshPRs]);
+
+  const exercisesInCategory = useMemo(() => {
+    if (category === MY_EXERCISES_CATEGORY) return customExercises;
+    return EXERCISES.filter((e) => e.category === category);
+  }, [category, customExercises]);
 
   function pickExercise(exercise: Exercise) {
     setSelectedExercise(exercise);
@@ -51,6 +66,15 @@ export default function LogWorkoutScreen() {
     setWeight('');
     setDistance('');
     setMinutes('');
+  }
+
+  async function submitCustomExercise() {
+    if (!customName.trim()) return;
+    const exercise = await addCustomExercise(customName, customType);
+    setCustomExercises((prev) => [...prev, exercise]);
+    setCustomName('');
+    setShowCustomForm(false);
+    pickExercise(exercise);
   }
 
   function addStrengthSet() {
@@ -113,8 +137,8 @@ export default function LogWorkoutScreen() {
   }
 
   const feedbackColor = {
-    pr: '#2FB44E',
-    close: '#E0A400',
+    pr: theme.success,
+    close: theme.warning,
     behind: theme.textSecondary,
     first: theme.textSecondary,
   } as const;
@@ -136,13 +160,20 @@ export default function LogWorkoutScreen() {
             {!selectedExercise && (
               <>
                 <View style={styles.categoryRow}>
-                  {CATEGORIES.map((c) => (
+                  {ALL_CATEGORIES.map((c) => (
                     <Pressable key={c} onPress={() => setCategory(c)}>
-                      <ThemedView
-                        type={c === category ? 'backgroundSelected' : 'backgroundElement'}
-                        style={styles.categoryChip}>
-                        <ThemedText type="small">{c}</ThemedText>
-                      </ThemedView>
+                      <View
+                        style={[
+                          styles.categoryChip,
+                          { borderColor: c === category ? theme.accent : theme.border },
+                          c === category && { backgroundColor: theme.accent },
+                        ]}>
+                        <ThemedText
+                          type="small"
+                          style={c === category && { color: theme.accentText }}>
+                          {c}
+                        </ThemedText>
+                      </View>
                     </Pressable>
                   ))}
                 </View>
@@ -150,7 +181,7 @@ export default function LogWorkoutScreen() {
                 <View style={styles.exerciseList}>
                   {exercisesInCategory.map((ex) => (
                     <Pressable key={ex.id} onPress={() => pickExercise(ex)}>
-                      <ThemedView type="backgroundElement" style={styles.exerciseRow}>
+                      <View style={[styles.exerciseRow, { borderColor: theme.border }]}>
                         <ThemedText>{ex.name}</ThemedText>
                         {prs[ex.id] && (
                           <ThemedText type="small" themeColor="textSecondary">
@@ -160,15 +191,63 @@ export default function LogWorkoutScreen() {
                               : `${prs[ex.id].bestSpeed?.toFixed(1)} mph`}
                           </ThemedText>
                         )}
-                      </ThemedView>
+                      </View>
                     </Pressable>
                   ))}
+
+                  {category === MY_EXERCISES_CATEGORY && !showCustomForm && (
+                    <Pressable onPress={() => setShowCustomForm(true)}>
+                      <View style={[styles.exerciseRow, styles.addRow, { borderColor: theme.accent }]}>
+                        <ThemedText type="smallBold" themeColor="accent">
+                          + Add your own exercise
+                        </ThemedText>
+                      </View>
+                    </Pressable>
+                  )}
+
+                  {category === MY_EXERCISES_CATEGORY && showCustomForm && (
+                    <Card>
+                      <TextInput
+                        style={[styles.input, { color: theme.text, borderColor: theme.border }]}
+                        placeholder="Exercise name"
+                        placeholderTextColor={theme.textSecondary}
+                        value={customName}
+                        onChangeText={setCustomName}
+                        autoFocus
+                      />
+                      <View style={styles.typeToggleRow}>
+                        {(['strength', 'cardio'] as ExerciseType[]).map((t) => (
+                          <Pressable key={t} style={styles.flex} onPress={() => setCustomType(t)}>
+                            <View
+                              style={[
+                                styles.typeToggle,
+                                { borderColor: t === customType ? theme.accent : theme.border },
+                                t === customType && { backgroundColor: theme.accent },
+                              ]}>
+                              <ThemedText
+                                type="small"
+                                style={t === customType && { color: theme.accentText }}>
+                                {t === 'strength' ? 'Strength' : 'Cardio'}
+                              </ThemedText>
+                            </View>
+                          </Pressable>
+                        ))}
+                      </View>
+                      <Pressable
+                        style={[styles.primaryButton, { backgroundColor: theme.accent }]}
+                        onPress={submitCustomExercise}>
+                        <ThemedText type="smallBold" style={{ color: theme.accentText }}>
+                          Add & Select
+                        </ThemedText>
+                      </Pressable>
+                    </Card>
+                  )}
                 </View>
               </>
             )}
 
             {selectedExercise && (
-              <ThemedView type="backgroundElement" style={styles.card}>
+              <Card>
                 <View style={styles.cardHeader}>
                   <ThemedText type="subtitle" style={styles.cardTitle}>
                     {selectedExercise.name}
@@ -184,7 +263,7 @@ export default function LogWorkoutScreen() {
                   <>
                     <View style={styles.inputRow}>
                       <TextInput
-                        style={[styles.input, { color: theme.text, borderColor: theme.backgroundSelected }]}
+                        style={[styles.input, styles.flex, { color: theme.text, borderColor: theme.border }]}
                         placeholder="Weight (lbs)"
                         placeholderTextColor={theme.textSecondary}
                         keyboardType="decimal-pad"
@@ -192,15 +271,15 @@ export default function LogWorkoutScreen() {
                         onChangeText={setWeight}
                       />
                       <TextInput
-                        style={[styles.input, { color: theme.text, borderColor: theme.backgroundSelected }]}
+                        style={[styles.input, styles.flex, { color: theme.text, borderColor: theme.border }]}
                         placeholder="Reps"
                         placeholderTextColor={theme.textSecondary}
                         keyboardType="number-pad"
                         value={reps}
                         onChangeText={setReps}
                       />
-                      <Pressable style={[styles.addSetButton, { backgroundColor: theme.text }]} onPress={addStrengthSet}>
-                        <ThemedText style={{ color: theme.background }} type="smallBold">
+                      <Pressable style={[styles.addSetButton, { backgroundColor: theme.accent }]} onPress={addStrengthSet}>
+                        <ThemedText style={{ color: theme.accentText }} type="smallBold">
                           Add
                         </ThemedText>
                       </Pressable>
@@ -215,7 +294,7 @@ export default function LogWorkoutScreen() {
                   <>
                     <View style={styles.inputRow}>
                       <TextInput
-                        style={[styles.input, { color: theme.text, borderColor: theme.backgroundSelected }]}
+                        style={[styles.input, styles.flex, { color: theme.text, borderColor: theme.border }]}
                         placeholder="Distance (mi)"
                         placeholderTextColor={theme.textSecondary}
                         keyboardType="decimal-pad"
@@ -223,15 +302,15 @@ export default function LogWorkoutScreen() {
                         onChangeText={setDistance}
                       />
                       <TextInput
-                        style={[styles.input, { color: theme.text, borderColor: theme.backgroundSelected }]}
+                        style={[styles.input, styles.flex, { color: theme.text, borderColor: theme.border }]}
                         placeholder="Minutes"
                         placeholderTextColor={theme.textSecondary}
                         keyboardType="decimal-pad"
                         value={minutes}
                         onChangeText={setMinutes}
                       />
-                      <Pressable style={[styles.addSetButton, { backgroundColor: theme.text }]} onPress={addCardioSet}>
-                        <ThemedText style={{ color: theme.background }} type="smallBold">
+                      <Pressable style={[styles.addSetButton, { backgroundColor: theme.accent }]} onPress={addCardioSet}>
+                        <ThemedText style={{ color: theme.accentText }} type="smallBold">
                           Add
                         </ThemedText>
                       </Pressable>
@@ -255,31 +334,29 @@ export default function LogWorkoutScreen() {
                   onPress={finishExercise}>
                   <ThemedText type="smallBold">Done with this exercise</ThemedText>
                 </Pressable>
-              </ThemedView>
+              </Card>
             )}
 
             {loggedExercises.length > 0 && (
-              <ThemedView type="backgroundElement" style={styles.card}>
-                <ThemedText type="subtitle" style={styles.cardTitle}>
-                  This Session
-                </ThemedText>
+              <Card>
+                <SectionHeader title="This Session" />
                 {loggedExercises.map((le, i) => (
                   <ThemedText key={i} type="small">
                     {le.exerciseName} — {le.strengthSets.length + le.cardioSets.length} set(s)
                   </ThemedText>
                 ))}
-              </ThemedView>
+              </Card>
             )}
 
             <Pressable
               disabled={loggedExercises.length === 0 || saving}
               style={[
                 styles.finishButton,
-                { backgroundColor: theme.text },
+                { backgroundColor: theme.accent },
                 (loggedExercises.length === 0 || saving) && styles.disabled,
               ]}
               onPress={finishWorkout}>
-              <ThemedText style={{ color: theme.background }} type="smallBold">
+              <ThemedText style={{ color: theme.accentText }} type="smallBold">
                 {saving ? 'Saving…' : 'Finish Workout'}
               </ThemedText>
             </Pressable>
@@ -317,6 +394,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,
     borderRadius: Spacing.five,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   exerciseList: {
     gap: Spacing.two,
@@ -327,11 +405,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: Spacing.three,
     borderRadius: Spacing.three,
+    borderWidth: StyleSheet.hairlineWidth,
   },
-  card: {
-    borderRadius: Spacing.three,
-    padding: Spacing.three,
-    gap: Spacing.two,
+  addRow: {
+    justifyContent: 'center',
+    borderStyle: 'dashed',
   },
   cardHeader: {
     flexDirection: 'row',
@@ -348,16 +426,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   input: {
-    flex: 1,
     borderWidth: 1,
     borderRadius: Spacing.two,
     paddingHorizontal: Spacing.two,
     paddingVertical: Spacing.two,
   },
+  typeToggleRow: {
+    flexDirection: 'row',
+    gap: Spacing.two,
+  },
+  typeToggle: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: Spacing.two,
+    paddingVertical: Spacing.two,
+    alignItems: 'center',
+  },
   addSetButton: {
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,
     borderRadius: Spacing.two,
+  },
+  primaryButton: {
+    paddingVertical: Spacing.two,
+    borderRadius: Spacing.two,
+    alignItems: 'center',
   },
   doneButton: {
     borderWidth: 1,

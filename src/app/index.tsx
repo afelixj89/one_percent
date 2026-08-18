@@ -1,29 +1,20 @@
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Card } from '@/components/card';
+import { SectionHeader } from '@/components/section-header';
+import { StatTile, StatTileRow } from '@/components/stat-tile';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { getTodaysFocus, getSuggestedExercises } from '@/lib/exercises';
 import { computePRs } from '@/lib/pr-utils';
+import { computeActivityStats } from '@/lib/stats';
 import { getSessions } from '@/lib/storage';
 import { PersonalRecord, WorkoutSession } from '@/lib/types';
-
-const WEEKDAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-
-function startOfWeek(date: Date): Date {
-  const d = new Date(date);
-  d.setHours(0, 0, 0, 0);
-  d.setDate(d.getDate() - d.getDay());
-  return d;
-}
-
-function isSameDay(a: Date, b: Date): boolean {
-  return a.toDateString() === b.toDateString();
-}
 
 export default function HomeScreen() {
   const theme = useTheme();
@@ -46,8 +37,7 @@ export default function HomeScreen() {
   );
 
   const today = new Date();
-  const weekStart = startOfWeek(today);
-  const loggedDays = new Set(sessions.map((s) => new Date(s.date).toDateString()));
+  const stats = useMemo(() => computeActivityStats(sessions), [sessions]);
 
   const focusCategories = getTodaysFocus(today);
   const suggestions = getSuggestedExercises(today);
@@ -56,6 +46,9 @@ export default function HomeScreen() {
     .sort((a, b) => b.date.localeCompare(a.date))
     .slice(0, 5);
 
+  const weekStart = new Date(today);
+  weekStart.setHours(0, 0, 0, 0);
+  weekStart.setDate(weekStart.getDate() - weekStart.getDay());
   const sessionsThisWeek = sessions.filter((s) => new Date(s.date) >= weekStart).length;
 
   return (
@@ -65,75 +58,54 @@ export default function HomeScreen() {
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}>
+          <ThemedText type="eyebrow" themeColor="textSecondary">
+            {today.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+          </ThemedText>
           <ThemedText type="title" style={styles.title}>
             One Percent
           </ThemedText>
-          <ThemedText themeColor="textSecondary">
-            {sessionsThisWeek === 0
-              ? "No sessions logged this week yet — let's start."
-              : `${sessionsThisWeek} session${sessionsThisWeek === 1 ? '' : 's'} logged this week.`}
-          </ThemedText>
 
-          <View style={styles.weekStrip}>
-            {WEEKDAY_LABELS.map((label, i) => {
-              const day = new Date(weekStart);
-              day.setDate(weekStart.getDate() + i);
-              const logged = loggedDays.has(day.toDateString());
-              const isToday = isSameDay(day, today);
-              return (
-                <View key={i} style={styles.weekDay}>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    {label}
-                  </ThemedText>
-                  <View
-                    style={[
-                      styles.dayDot,
-                      { backgroundColor: logged ? theme.text : theme.backgroundElement },
-                      isToday && { borderColor: theme.text, borderWidth: 2 },
-                    ]}
-                  />
-                </View>
-              );
-            })}
-          </View>
+          <StatTileRow>
+            <StatTile value={String(stats.currentStreak)} label="Day streak" accent={stats.currentStreak > 0} />
+            <StatTile value={String(sessionsThisWeek)} label="This week" />
+            <StatTile value={String(stats.totalSessions)} label="All time" />
+          </StatTileRow>
 
-          <ThemedView type="backgroundElement" style={styles.card}>
-            <ThemedText type="subtitle" style={styles.cardTitle}>
-              Today&apos;s Focus
-            </ThemedText>
-            <ThemedText themeColor="textSecondary" style={styles.cardSubtitle}>
+          <Card>
+            <SectionHeader title="Today's Focus" />
+            <ThemedText type="small" themeColor="textSecondary">
               {focusCategories.join(' + ')} — pick what you want, this is just a starting point.
             </ThemedText>
             <View style={styles.suggestionList}>
               {suggestions.map((ex) => (
-                <ThemedView key={ex.id} type="backgroundSelected" style={styles.suggestionChip}>
+                <View key={ex.id} style={[styles.suggestionChip, { borderColor: theme.border }]}>
                   <ThemedText type="small">{ex.name}</ThemedText>
-                </ThemedView>
+                </View>
               ))}
             </View>
-          </ThemedView>
+          </Card>
 
           <Pressable
-            style={({ pressed }) => [styles.logButton, { backgroundColor: theme.text }, pressed && styles.pressed]}
+            style={({ pressed }) => [
+              styles.logButton,
+              { backgroundColor: theme.accent },
+              pressed && styles.pressed,
+            ]}
             onPress={() => router.push('/log-workout')}>
-            <ThemedText style={{ color: theme.background }} type="smallBold">
+            <ThemedText style={{ color: theme.accentText }} type="smallBold">
               + Log Workout
             </ThemedText>
           </Pressable>
 
-          <ThemedView type="backgroundElement" style={styles.card}>
-            <ThemedText type="subtitle" style={styles.cardTitle}>
-              Recent PRs
-            </ThemedText>
+          <Card>
+            <SectionHeader title="Recent PRs" />
             {recentPRs.length === 0 ? (
-              <ThemedText themeColor="textSecondary" style={styles.cardSubtitle}>
-                Log a workout to start setting records.
-              </ThemedText>
+              <ThemedText themeColor="textSecondary">Log a workout to start setting records.</ThemedText>
             ) : (
               recentPRs.map((pr) => (
                 <View key={pr.exerciseId} style={styles.prRow}>
                   <ThemedText type="small">{pr.exerciseName}</ThemedText>
-                  <ThemedText type="smallBold">
+                  <ThemedText type="smallBold" themeColor="success">
                     {pr.type === 'strength'
                       ? `${pr.bestWeight} lbs x ${pr.bestReps}`
                       : `${pr.bestSpeed?.toFixed(1)} mph`}
@@ -141,7 +113,7 @@ export default function HomeScreen() {
                 </View>
               ))
             )}
-          </ThemedView>
+          </Card>
         </ScrollView>
       </SafeAreaView>
     </ThemedView>
@@ -160,6 +132,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: Spacing.four,
+    paddingTop: Spacing.two,
     paddingBottom: BottomTabInset + Spacing.four,
     gap: Spacing.three,
     maxWidth: MaxContentWidth,
@@ -169,32 +142,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 34,
     lineHeight: 40,
-    marginTop: Spacing.two,
   },
-  weekStrip: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: Spacing.two,
-  },
-  weekDay: {
-    alignItems: 'center',
-    gap: Spacing.one,
-  },
-  dayDot: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-  },
-  card: {
-    borderRadius: Spacing.three,
-    padding: Spacing.three,
-    gap: Spacing.two,
-  },
-  cardTitle: {
-    fontSize: 20,
-    lineHeight: 26,
-  },
-  cardSubtitle: {},
   suggestionList: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -204,6 +152,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,
     borderRadius: Spacing.five,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   logButton: {
     paddingVertical: Spacing.three,

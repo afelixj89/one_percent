@@ -1,26 +1,35 @@
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { ActivityCalendar } from '@/components/activity-calendar';
+import { Card } from '@/components/card';
+import { SectionHeader } from '@/components/section-header';
+import { StatTile, StatTileRow } from '@/components/stat-tile';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { computePRs } from '@/lib/pr-utils';
+import { computeActivityStats } from '@/lib/stats';
 import { getSessions } from '@/lib/storage';
 import { PersonalRecord, WorkoutSession } from '@/lib/types';
+import { useTheme } from '@/hooks/use-theme';
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-  });
+function formatDate(date: Date | string): string {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+function formatShortDate(date: Date): string {
+  return date.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
 }
 
 export default function ProgressScreen() {
+  const theme = useTheme();
   const [sessions, setSessions] = useState<WorkoutSession[]>([]);
   const [prs, setPrs] = useState<Record<string, PersonalRecord>>({});
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -37,7 +46,12 @@ export default function ProgressScreen() {
     }, [])
   );
 
+  const stats = useMemo(() => computeActivityStats(sessions), [sessions]);
   const prList = Object.values(prs).sort((a, b) => a.exerciseName.localeCompare(b.exerciseName));
+
+  const selectedDaySessions = selectedDate
+    ? sessions.filter((s) => new Date(s.date).toDateString() === selectedDate.toDateString())
+    : [];
 
   return (
     <ThemedView style={styles.container}>
@@ -50,10 +64,44 @@ export default function ProgressScreen() {
             Progress
           </ThemedText>
 
-          <ThemedView type="backgroundElement" style={styles.card}>
-            <ThemedText type="subtitle" style={styles.cardTitle}>
-              Personal Records
-            </ThemedText>
+          <StatTileRow>
+            <StatTile value={String(stats.currentStreak)} label="Day streak" accent={stats.currentStreak > 0} />
+            <StatTile value={String(stats.totalSessions)} label="Sessions" />
+            <StatTile value={String(stats.longestStreak)} label="Best streak" />
+          </StatTileRow>
+
+          <Card>
+            <SectionHeader
+              title={
+                stats.firstSessionDate
+                  ? `Training since ${formatShortDate(stats.firstSessionDate)}`
+                  : 'Activity'
+              }
+            />
+            <ActivityCalendar sessions={sessions} selectedDate={selectedDate} onSelectDate={setSelectedDate} />
+
+            {selectedDate && (
+              <View style={[styles.selectedDayBlock, { borderTopColor: theme.border }]}>
+                <ThemedText type="smallBold">{formatDate(selectedDate)}</ThemedText>
+                {selectedDaySessions.length === 0 ? (
+                  <ThemedText type="small" themeColor="textSecondary">
+                    No workout logged.
+                  </ThemedText>
+                ) : (
+                  selectedDaySessions.map((session) =>
+                    session.exercises.map((ex, i) => (
+                      <ThemedText key={`${session.id}-${i}`} type="small" themeColor="textSecondary">
+                        {ex.exerciseName} — {ex.strengthSets.length + ex.cardioSets.length} set(s)
+                      </ThemedText>
+                    ))
+                  )
+                )}
+              </View>
+            )}
+          </Card>
+
+          <Card>
+            <SectionHeader title="Personal Records" />
             {prList.length === 0 ? (
               <ThemedText themeColor="textSecondary">No PRs yet — log a workout to start.</ThemedText>
             ) : (
@@ -73,12 +121,10 @@ export default function ProgressScreen() {
                 </View>
               ))
             )}
-          </ThemedView>
+          </Card>
 
-          <ThemedView type="backgroundElement" style={styles.card}>
-            <ThemedText type="subtitle" style={styles.cardTitle}>
-              Session History
-            </ThemedText>
+          <Card>
+            <SectionHeader title="All Sessions" />
             {sessions.length === 0 ? (
               <ThemedText themeColor="textSecondary">Nothing logged yet.</ThemedText>
             ) : (
@@ -93,7 +139,7 @@ export default function ProgressScreen() {
                 </View>
               ))
             )}
-          </ThemedView>
+          </Card>
         </ScrollView>
       </SafeAreaView>
     </ThemedView>
@@ -117,15 +163,6 @@ const styles = StyleSheet.create({
     lineHeight: 34,
     marginTop: Spacing.two,
   },
-  card: {
-    borderRadius: Spacing.three,
-    padding: Spacing.three,
-    gap: Spacing.two,
-  },
-  cardTitle: {
-    fontSize: 20,
-    lineHeight: 26,
-  },
   prRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -134,5 +171,11 @@ const styles = StyleSheet.create({
   sessionBlock: {
     gap: Spacing.half,
     paddingVertical: Spacing.one,
+  },
+  selectedDayBlock: {
+    gap: Spacing.half,
+    paddingTop: Spacing.two,
+    marginTop: Spacing.one,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
 });
