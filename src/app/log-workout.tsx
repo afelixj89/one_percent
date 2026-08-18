@@ -54,8 +54,21 @@ export default function LogWorkoutScreen() {
 
   const exercisesInCategory = useMemo(() => {
     if (category === MY_EXERCISES_CATEGORY) return customExercises;
-    return EXERCISES.filter((e) => e.category === category);
+    const builtIn = EXERCISES.filter((e) => e.category === category);
+    const custom = customExercises.filter((e) => e.category === category);
+    return [...builtIn, ...custom];
   }, [category, customExercises]);
+
+  function selectCategory(c: string) {
+    setCategory(c);
+    setShowCustomForm(false);
+    setCustomName('');
+  }
+
+  function openCustomForm() {
+    setCustomType(category === 'Cardio' ? 'cardio' : 'strength');
+    setShowCustomForm(true);
+  }
 
   function pickExercise(exercise: Exercise) {
     setSelectedExercise(exercise);
@@ -70,7 +83,7 @@ export default function LogWorkoutScreen() {
 
   async function submitCustomExercise() {
     if (!customName.trim()) return;
-    const exercise = await addCustomExercise(customName, customType);
+    const exercise = await addCustomExercise(customName, customType, category);
     setCustomExercises((prev) => [...prev, exercise]);
     setCustomName('');
     setShowCustomForm(false);
@@ -161,7 +174,7 @@ export default function LogWorkoutScreen() {
               <>
                 <View style={styles.categoryRow}>
                   {ALL_CATEGORIES.map((c) => (
-                    <Pressable key={c} onPress={() => setCategory(c)}>
+                    <Pressable key={c} onPress={() => selectCategory(c)}>
                       <View
                         style={[
                           styles.categoryChip,
@@ -195,17 +208,17 @@ export default function LogWorkoutScreen() {
                     </Pressable>
                   ))}
 
-                  {category === MY_EXERCISES_CATEGORY && !showCustomForm && (
-                    <Pressable onPress={() => setShowCustomForm(true)}>
+                  {category !== MY_EXERCISES_CATEGORY && !showCustomForm && (
+                    <Pressable onPress={openCustomForm}>
                       <View style={[styles.exerciseRow, styles.addRow, { borderColor: theme.accent }]}>
                         <ThemedText type="smallBold" themeColor="accent">
-                          + Add your own exercise
+                          + Add your own {category} exercise
                         </ThemedText>
                       </View>
                     </Pressable>
                   )}
 
-                  {category === MY_EXERCISES_CATEGORY && showCustomForm && (
+                  {category !== MY_EXERCISES_CATEGORY && showCustomForm && (
                     <Card>
                       <TextInput
                         style={[styles.input, { color: theme.text, borderColor: theme.border }]}

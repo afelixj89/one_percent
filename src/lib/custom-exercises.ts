@@ -24,12 +24,12 @@ export async function getCustomExercises(): Promise<Exercise[]> {
   }
 }
 
-export async function addCustomExercise(name: string, type: ExerciseType): Promise<Exercise> {
+export async function addCustomExercise(name: string, type: ExerciseType, category: string): Promise<Exercise> {
   const existing = await getCustomExercises();
   const exercise: Exercise = {
     id: `custom-${slugify(name)}-${Date.now()}`,
     name: name.trim(),
-    category: MY_EXERCISES_CATEGORY,
+    category,
     type,
   };
   await AsyncStorage.setItem(CUSTOM_EXERCISES_KEY, JSON.stringify([...existing, exercise]));
