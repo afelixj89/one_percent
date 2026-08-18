@@ -42,6 +42,7 @@ export default function LogWorkoutScreen() {
   const [showCustomForm, setShowCustomForm] = useState(false);
   const [customName, setCustomName] = useState('');
   const [customType, setCustomType] = useState<ExerciseType>('strength');
+  const [submittingCustom, setSubmittingCustom] = useState(false);
 
   const refreshPRs = useCallback(() => {
     getSessions().then((sessions) => setPrs(computePRs(sessions)));
@@ -82,11 +83,13 @@ export default function LogWorkoutScreen() {
   }
 
   async function submitCustomExercise() {
-    if (!customName.trim()) return;
+    if (!customName.trim() || submittingCustom) return;
+    setSubmittingCustom(true);
     const exercise = await addCustomExercise(customName, customType, category);
     setCustomExercises((prev) => [...prev, exercise]);
     setCustomName('');
     setShowCustomForm(false);
+    setSubmittingCustom(false);
     pickExercise(exercise);
   }
 
@@ -247,7 +250,12 @@ export default function LogWorkoutScreen() {
                         ))}
                       </View>
                       <Pressable
-                        style={[styles.primaryButton, { backgroundColor: theme.accent }]}
+                        disabled={submittingCustom}
+                        style={[
+                          styles.primaryButton,
+                          { backgroundColor: theme.accent },
+                          submittingCustom && styles.disabled,
+                        ]}
                         onPress={submitCustomExercise}>
                         <ThemedText type="smallBold" style={{ color: theme.accentText }}>
                           Add & Select

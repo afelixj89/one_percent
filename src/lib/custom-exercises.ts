@@ -27,7 +27,7 @@ export async function getCustomExercises(): Promise<Exercise[]> {
 export async function addCustomExercise(name: string, type: ExerciseType, category: string): Promise<Exercise> {
   const existing = await getCustomExercises();
   const exercise: Exercise = {
-    id: `custom-${slugify(name)}-${Date.now()}`,
+    id: `custom-${slugify(name)}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     name: name.trim(),
     category,
     type,
