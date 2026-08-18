@@ -1,6 +1,6 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ActivityCalendar } from '@/components/activity-calendar';
@@ -10,10 +10,12 @@ import { StatTile, StatTileRow } from '@/components/stat-tile';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { useAuth } from '@/lib/auth-context';
 import { computePRs } from '@/lib/pr-utils';
 import { computeActivityStats } from '@/lib/stats';
 import { getSessions } from '@/lib/storage';
 import { PersonalRecord, WorkoutSession } from '@/lib/types';
+import { getDisplayName } from '@/lib/user-display';
 import { useTheme } from '@/hooks/use-theme';
 
 function formatDate(date: Date | string): string {
@@ -27,6 +29,7 @@ function formatShortDate(date: Date): string {
 
 export default function ProgressScreen() {
   const theme = useTheme();
+  const { user, signOut } = useAuth();
   const [sessions, setSessions] = useState<WorkoutSession[]>([]);
   const [prs, setPrs] = useState<Record<string, PersonalRecord>>({});
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -140,6 +143,19 @@ export default function ProgressScreen() {
               ))
             )}
           </Card>
+
+          <Card>
+            <SectionHeader title="Account" />
+            <ThemedText type="smallBold">{getDisplayName(user)}</ThemedText>
+            {user?.displayName && user?.email && (
+              <ThemedText type="small" themeColor="textSecondary">
+                {user.email}
+              </ThemedText>
+            )}
+            <Pressable style={[styles.signOutButton, { borderColor: theme.border }]} onPress={() => signOut()}>
+              <ThemedText type="smallBold">Sign Out</ThemedText>
+            </Pressable>
+          </Card>
         </ScrollView>
       </SafeAreaView>
     </ThemedView>
@@ -177,5 +193,11 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.two,
     marginTop: Spacing.one,
     borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  signOutButton: {
+    borderWidth: 1,
+    borderRadius: Spacing.two,
+    paddingVertical: Spacing.two,
+    alignItems: 'center',
   },
 });

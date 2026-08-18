@@ -10,15 +10,18 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { useAuth } from '@/lib/auth-context';
 import { getTodaysFocus, getSuggestedExercises } from '@/lib/exercises';
 import { computePRs } from '@/lib/pr-utils';
 import { computeActivityStats } from '@/lib/stats';
 import { getSessions } from '@/lib/storage';
 import { PersonalRecord, WorkoutSession } from '@/lib/types';
+import { getFirstName } from '@/lib/user-display';
 
 export default function HomeScreen() {
   const theme = useTheme();
   const router = useRouter();
+  const { user } = useAuth();
   const [sessions, setSessions] = useState<WorkoutSession[]>([]);
   const [prs, setPrs] = useState<Record<string, PersonalRecord>>({});
 
@@ -59,10 +62,13 @@ export default function HomeScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}>
           <ThemedText type="eyebrow" themeColor="textSecondary">
-            {today.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+            One Percent
           </ThemedText>
           <ThemedText type="title" style={styles.title}>
-            One Percent
+            Hello, {getFirstName(user)}
+          </ThemedText>
+          <ThemedText themeColor="textSecondary">
+            {today.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
           </ThemedText>
 
           <StatTileRow>
