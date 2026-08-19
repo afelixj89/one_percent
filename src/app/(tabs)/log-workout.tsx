@@ -345,7 +345,7 @@ export default function LogWorkoutScreen() {
                     <View style={styles.inputRow}>
                       <TextInput
                         style={[styles.input, styles.flex, { color: theme.text, borderColor: theme.border }]}
-                        placeholder="Weight (lbs)"
+                        placeholder="Weight"
                         placeholderTextColor={theme.textSecondary}
                         keyboardType="decimal-pad"
                         value={weight}
@@ -359,12 +359,12 @@ export default function LogWorkoutScreen() {
                         value={reps}
                         onChangeText={setReps}
                       />
-                      <Pressable style={[styles.addSetButton, { backgroundColor: theme.accent }]} onPress={addStrengthSet}>
-                        <ThemedText style={{ color: theme.accentText }} type="smallBold">
-                          Add
-                        </ThemedText>
-                      </Pressable>
                     </View>
+                    <Pressable style={[styles.addSetButton, { backgroundColor: theme.accent }]} onPress={addStrengthSet}>
+                      <ThemedText style={{ color: theme.accentText }} type="smallBold">
+                        Add Set
+                      </ThemedText>
+                    </Pressable>
                     {strengthSets.map((s, i) => (
                       <ThemedText key={i} type="small" themeColor="textSecondary">
                         Set {i + 1}: {s.weight} lbs x {s.reps}
@@ -390,12 +390,12 @@ export default function LogWorkoutScreen() {
                         value={minutes}
                         onChangeText={setMinutes}
                       />
-                      <Pressable style={[styles.addSetButton, { backgroundColor: theme.accent }]} onPress={addCardioSet}>
-                        <ThemedText style={{ color: theme.accentText }} type="smallBold">
-                          Add
-                        </ThemedText>
-                      </Pressable>
                     </View>
+                    <Pressable style={[styles.addSetButton, { backgroundColor: theme.accent }]} onPress={addCardioSet}>
+                      <ThemedText style={{ color: theme.accentText }} type="smallBold">
+                        Add Set
+                      </ThemedText>
+                    </Pressable>
                     {cardioSets.map((s, i) => (
                       <ThemedText key={i} type="small" themeColor="textSecondary">
                         Set {i + 1}: {s.distance} mi in {(s.durationSeconds / 60).toFixed(1)} min
@@ -521,6 +521,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   input: {
+    minWidth: 0,
     borderWidth: 1,
     borderRadius: Spacing.two,
     paddingHorizontal: Spacing.two,
@@ -537,9 +538,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   addSetButton: {
-    paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,
     borderRadius: Spacing.two,
+    alignItems: 'center',
   },
   primaryButton: {
     paddingVertical: Spacing.two,
