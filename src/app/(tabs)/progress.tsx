@@ -11,6 +11,12 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useAuth } from '@/lib/auth-context';
+import {
+  compareExercises,
+  compareToLastWeek,
+  ComparisonStatus,
+  getSessionsOnSameWeekdayLastWeek,
+} from '@/lib/benchmark';
 import { computePRs } from '@/lib/pr-utils';
 import { computeActivityStats } from '@/lib/stats';
 import { getSessions } from '@/lib/storage';
@@ -56,6 +62,20 @@ export default function ProgressScreen() {
     ? sessions.filter((s) => new Date(s.date).toDateString() === selectedDate.toDateString())
     : [];
 
+  const lastWeekSameDaySessions = selectedDate ? getSessionsOnSameWeekdayLastWeek(sessions, selectedDate) : [];
+  const dayComparisons =
+    selectedDate && (selectedDaySessions.length > 0 || lastWeekSameDaySessions.length > 0)
+      ? compareExercises(selectedDaySessions, lastWeekSameDaySessions)
+      : [];
+
+  const comparisonColor: Record<ComparisonStatus, keyof typeof theme> = {
+    better: 'success',
+    worse: 'warning',
+    same: 'textSecondary',
+    new: 'textSecondary',
+    missed: 'textSecondary',
+  };
+
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -99,6 +119,25 @@ export default function ProgressScreen() {
                     ))
                   )
                 )}
+              </View>
+            )}
+
+            {selectedDate && dayComparisons.length > 0 && (
+              <View style={[styles.selectedDayBlock, { borderTopColor: theme.border }]}>
+                <ThemedText type="smallBold">
+                  vs. last {selectedDate.toLocaleDateString(undefined, { weekday: 'long' })}
+                </ThemedText>
+                {dayComparisons.map((comparison) => {
+                  const result = compareToLastWeek(comparison);
+                  return (
+                    <View key={comparison.exerciseId} style={styles.prRow}>
+                      <ThemedText type="small">{comparison.exerciseName}</ThemedText>
+                      <ThemedText type="small" themeColor={comparisonColor[result.status]}>
+                        {result.message}
+                      </ThemedText>
+                    </View>
+                  );
+                })}
               </View>
             )}
           </Card>

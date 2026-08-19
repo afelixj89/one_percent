@@ -12,7 +12,8 @@ import { addCustomExercise, getCustomExercises, MY_EXERCISES_CATEGORY } from '@/
 import { CATEGORIES, EXERCISES } from '@/lib/exercises';
 import { computePRs, feedbackForCardioSet, feedbackForStrengthSet, SetFeedback } from '@/lib/pr-utils';
 import { saveSession, getSessions } from '@/lib/storage';
-import { CardioSet, Exercise, ExerciseType, LoggedExercise, PersonalRecord, StrengthSet } from '@/lib/types';
+import { getCardioSuggestion, getStrengthSuggestions } from '@/lib/suggestions';
+import { CardioSet, Exercise, ExerciseType, LoggedExercise, PersonalRecord, StrengthSet, WorkoutSession } from '@/lib/types';
 import { useTheme } from '@/hooks/use-theme';
 
 function makeId() {
@@ -26,6 +27,7 @@ export default function LogWorkoutScreen() {
   const router = useRouter();
 
   const [prs, setPrs] = useState<Record<string, PersonalRecord>>({});
+  const [sessions, setSessions] = useState<WorkoutSession[]>([]);
   const [customExercises, setCustomExercises] = useState<Exercise[]>([]);
   const [category, setCategory] = useState<string>(ALL_CATEGORIES[0]);
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
@@ -45,7 +47,10 @@ export default function LogWorkoutScreen() {
   const [submittingCustom, setSubmittingCustom] = useState(false);
 
   const refreshPRs = useCallback(() => {
-    getSessions().then((sessions) => setPrs(computePRs(sessions)));
+    getSessions().then((loaded) => {
+      setSessions(loaded);
+      setPrs(computePRs(loaded));
+    });
   }, []);
 
   useEffect(() => {
@@ -69,6 +74,26 @@ export default function LogWorkoutScreen() {
   function openCustomForm() {
     setCustomType(category === 'Cardio' ? 'cardio' : 'strength');
     setShowCustomForm(true);
+  }
+
+  const strengthSuggestions = useMemo(() => {
+    if (!selectedExercise || selectedExercise.type !== 'strength') return [];
+    return getStrengthSuggestions(sessions, selectedExercise.id);
+  }, [selectedExercise, sessions]);
+
+  const cardioSuggestion = useMemo(() => {
+    if (!selectedExercise || selectedExercise.type !== 'cardio') return null;
+    return getCardioSuggestion(sessions, selectedExercise.id);
+  }, [selectedExercise, sessions]);
+
+  function applyStrengthSuggestion(weightVal: number, repsVal: number) {
+    setWeight(String(weightVal));
+    setReps(String(repsVal));
+  }
+
+  function applyCardioSuggestion(distanceVal: number, durationSeconds: number) {
+    setDistance(String(distanceVal));
+    setMinutes(String(Math.round(durationSeconds / 60)));
   }
 
   function pickExercise(exercise: Exercise) {
@@ -280,6 +305,41 @@ export default function LogWorkoutScreen() {
                   </Pressable>
                 </View>
 
+                {strengthSuggestions.length > 0 && (
+                  <View style={styles.suggestionRow}>
+                    <ThemedText type="statLabel" themeColor="textSecondary">
+                      Beat last time
+                    </ThemedText>
+                    <View style={styles.suggestionChipRow}>
+                      {strengthSuggestions.map((s, i) => (
+                        <Pressable key={i} onPress={() => applyStrengthSuggestion(s.weight, s.reps)}>
+                          <View style={[styles.suggestionChip, { borderColor: theme.accent }]}>
+                            <ThemedText type="small" themeColor="accent">
+                              {s.label}
+                            </ThemedText>
+                          </View>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </View>
+                )}
+
+                {cardioSuggestion && (
+                  <View style={styles.suggestionRow}>
+                    <ThemedText type="statLabel" themeColor="textSecondary">
+                      Beat last time
+                    </ThemedText>
+                    <Pressable
+                      onPress={() => applyCardioSuggestion(cardioSuggestion.distance, cardioSuggestion.durationSeconds)}>
+                      <View style={[styles.suggestionChip, { borderColor: theme.accent }]}>
+                        <ThemedText type="small" themeColor="accent">
+                          {cardioSuggestion.label}
+                        </ThemedText>
+                      </View>
+                    </Pressable>
+                  </View>
+                )}
+
                 {selectedExercise.type === 'strength' ? (
                   <>
                     <View style={styles.inputRow}>
@@ -440,6 +500,20 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 20,
     lineHeight: 26,
+  },
+  suggestionRow: {
+    gap: Spacing.one,
+  },
+  suggestionChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.two,
+  },
+  suggestionChip: {
+    borderWidth: 1,
+    borderRadius: Spacing.five,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.one,
   },
   inputRow: {
     flexDirection: 'row',

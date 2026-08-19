@@ -11,6 +11,7 @@ import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/lib/auth-context';
+import { getSessionsOnSameWeekdayLastWeek } from '@/lib/benchmark';
 import { getTodaysFocus, getSuggestedExercises } from '@/lib/exercises';
 import { computePRs } from '@/lib/pr-utils';
 import { computeActivityStats } from '@/lib/stats';
@@ -54,6 +55,13 @@ export default function HomeScreen() {
   weekStart.setDate(weekStart.getDate() - weekStart.getDay());
   const sessionsThisWeek = sessions.filter((s) => new Date(s.date) >= weekStart).length;
 
+  const lastWeekSameDay = useMemo(
+    () => getSessionsOnSameWeekdayLastWeek(sessions, today),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sessions]
+  );
+  const weekdayName = today.toLocaleDateString(undefined, { weekday: 'long' });
+
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -90,6 +98,33 @@ export default function HomeScreen() {
               ))}
             </View>
           </Card>
+
+          {lastWeekSameDay.length > 0 && (
+            <Card>
+              <SectionHeader title={`Last ${weekdayName}`} />
+              {lastWeekSameDay.map((session) =>
+                session.exercises.map((ex, i) => (
+                  <View key={`${session.id}-${i}`} style={styles.prRow}>
+                    <ThemedText type="small">{ex.exerciseName}</ThemedText>
+                    <ThemedText type="small" themeColor="textSecondary">
+                      {ex.strengthSets.length > 0
+                        ? `${ex.strengthSets[0].weight} lbs x ${ex.strengthSets[0].reps}`
+                        : ex.cardioSets.length > 0
+                          ? `${ex.cardioSets[0].distance} mi`
+                          : ''}
+                    </ThemedText>
+                  </View>
+                ))
+              )}
+              <Pressable
+                style={[styles.beatItButton, { borderColor: theme.accent }]}
+                onPress={() => router.push('/log-workout')}>
+                <ThemedText type="smallBold" themeColor="accent">
+                  Beat It
+                </ThemedText>
+              </Pressable>
+            </Card>
+          )}
 
           <Pressable
             style={({ pressed }) => [
@@ -164,6 +199,13 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.three,
     borderRadius: Spacing.three,
     alignItems: 'center',
+  },
+  beatItButton: {
+    borderWidth: 1,
+    borderRadius: Spacing.two,
+    paddingVertical: Spacing.two,
+    alignItems: 'center',
+    marginTop: Spacing.one,
   },
   pressed: {
     opacity: 0.7,
