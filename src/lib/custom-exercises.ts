@@ -1,10 +1,13 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { collection, doc, getDocs, setDoc } from '@firebase/firestore';
 
+import { auth, db } from './firebase';
 import { Exercise, ExerciseType } from './types';
 
-const CUSTOM_EXERCISES_KEY = 'onepercent:customExercises';
-
 export const MY_EXERCISES_CATEGORY = 'My Exercises';
+
+function customExercisesCollection(uid: string) {
+  return collection(db, 'users', uid, 'customExercises');
+}
 
 function slugify(name: string): string {
   return name
@@ -15,23 +18,21 @@ function slugify(name: string): string {
 }
 
 export async function getCustomExercises(): Promise<Exercise[]> {
-  const raw = await AsyncStorage.getItem(CUSTOM_EXERCISES_KEY);
-  if (!raw) return [];
-  try {
-    return JSON.parse(raw) as Exercise[];
-  } catch {
-    return [];
-  }
+  const uid = auth.currentUser?.uid;
+  if (!uid) return [];
+  const snapshot = await getDocs(customExercisesCollection(uid));
+  return snapshot.docs.map((d) => d.data() as Exercise);
 }
 
 export async function addCustomExercise(name: string, type: ExerciseType, category: string): Promise<Exercise> {
-  const existing = await getCustomExercises();
+  const uid = auth.currentUser?.uid;
+  if (!uid) throw new Error('Not signed in');
   const exercise: Exercise = {
     id: `custom-${slugify(name)}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     name: name.trim(),
     category,
     type,
   };
-  await AsyncStorage.setItem(CUSTOM_EXERCISES_KEY, JSON.stringify([...existing, exercise]));
+  await setDoc(doc(customExercisesCollection(uid), exercise.id), exercise);
   return exercise;
 }
