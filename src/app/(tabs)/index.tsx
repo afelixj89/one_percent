@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Card } from '@/components/card';
 import { SectionHeader } from '@/components/section-header';
+import { Sparkline } from '@/components/sparkline';
 import { StatTile, StatTileRow } from '@/components/stat-tile';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -14,7 +15,7 @@ import { useAuth } from '@/lib/auth-context';
 import { getSessionsOnSameWeekdayLastWeek } from '@/lib/benchmark';
 import { getTodaysFocus, getSuggestedExercises } from '@/lib/exercises';
 import { computePRs } from '@/lib/pr-utils';
-import { computeActivityStats } from '@/lib/stats';
+import { computeActivityStats, computeWeeklySessionCounts } from '@/lib/stats';
 import { getSessions } from '@/lib/storage';
 import { PersonalRecord, WorkoutSession } from '@/lib/types';
 import { getFirstName } from '@/lib/user-display';
@@ -61,6 +62,8 @@ export default function HomeScreen() {
     [sessions]
   );
   const weekdayName = today.toLocaleDateString(undefined, { weekday: 'long' });
+  const weeklyCounts = useMemo(() => computeWeeklySessionCounts(sessions, 8), [sessions]);
+  const hasTrendData = weeklyCounts.some((c) => c > 0);
 
   return (
     <ThemedView style={styles.container}>
@@ -84,6 +87,20 @@ export default function HomeScreen() {
             <StatTile value={String(sessionsThisWeek)} label="This week" />
             <StatTile value={String(stats.totalSessions)} label="All time" />
           </StatTileRow>
+
+          {hasTrendData && (
+            <Card style={styles.trendCard}>
+              <View>
+                <ThemedText type="statLabel" themeColor="textSecondary">
+                  8-week trend
+                </ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">
+                  Sessions per week
+                </ThemedText>
+              </View>
+              <Sparkline values={weeklyCounts} />
+            </Card>
+          )}
 
           <Card>
             <SectionHeader title="Today's Focus" />
@@ -211,6 +228,11 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   prRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  trendCard: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',

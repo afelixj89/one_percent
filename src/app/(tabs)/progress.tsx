@@ -1,10 +1,11 @@
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ActivityCalendar } from '@/components/activity-calendar';
 import { Card } from '@/components/card';
+import { CategoryDot } from '@/components/category-dot';
 import { SectionHeader } from '@/components/section-header';
 import { StatTile, StatTileRow } from '@/components/stat-tile';
 import { ThemedText } from '@/components/themed-text';
@@ -17,10 +18,12 @@ import {
   ComparisonStatus,
   getSessionsOnSameWeekdayLastWeek,
 } from '@/lib/benchmark';
+import { getCustomExercises } from '@/lib/custom-exercises';
+import { EXERCISES } from '@/lib/exercises';
 import { computePRs } from '@/lib/pr-utils';
 import { computeActivityStats } from '@/lib/stats';
 import { getSessions } from '@/lib/storage';
-import { PersonalRecord, WorkoutSession } from '@/lib/types';
+import { Exercise, PersonalRecord, WorkoutSession } from '@/lib/types';
 import { getDisplayName } from '@/lib/user-display';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -35,10 +38,12 @@ function formatShortDate(date: Date): string {
 
 export default function ProgressScreen() {
   const theme = useTheme();
+  const router = useRouter();
   const { user, signOut } = useAuth();
   const [sessions, setSessions] = useState<WorkoutSession[]>([]);
   const [prs, setPrs] = useState<Record<string, PersonalRecord>>({});
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [customExercises, setCustomExercises] = useState<Exercise[]>([]);
 
   useFocusEffect(
     useCallback(() => {
@@ -49,11 +54,18 @@ export default function ProgressScreen() {
         setSessions(sorted);
         setPrs(computePRs(loaded));
       });
+      getCustomExercises().then((loaded) => {
+        if (!cancelled) setCustomExercises(loaded);
+      });
       return () => {
         cancelled = true;
       };
     }, [])
   );
+
+  function categoryFor(exerciseId: string): string | undefined {
+    return EXERCISES.find((e) => e.id === exerciseId)?.category ?? customExercises.find((e) => e.id === exerciseId)?.category;
+  }
 
   const stats = useMemo(() => computeActivityStats(sessions), [sessions]);
   const prList = Object.values(prs).sort((a, b) => a.exerciseName.localeCompare(b.exerciseName));
@@ -147,21 +159,29 @@ export default function ProgressScreen() {
             {prList.length === 0 ? (
               <ThemedText themeColor="textSecondary">No PRs yet — log a workout to start.</ThemedText>
             ) : (
-              prList.map((pr) => (
-                <View key={pr.exerciseId} style={styles.prRow}>
-                  <View>
-                    <ThemedText type="small">{pr.exerciseName}</ThemedText>
-                    <ThemedText type="small" themeColor="textSecondary">
-                      {formatDate(pr.date)}
-                    </ThemedText>
-                  </View>
-                  <ThemedText type="smallBold">
-                    {pr.type === 'strength'
-                      ? `${pr.bestWeight} lbs x ${pr.bestReps}`
-                      : `${pr.bestSpeed?.toFixed(1)} mph`}
-                  </ThemedText>
-                </View>
-              ))
+              prList.map((pr) => {
+                const category = categoryFor(pr.exerciseId);
+                return (
+                  <Pressable key={pr.exerciseId} onPress={() => router.push(`/exercise/${pr.exerciseId}`)}>
+                    <View style={styles.prRow}>
+                      <View style={styles.prRowLeft}>
+                        {category && <CategoryDot category={category} />}
+                        <View>
+                          <ThemedText type="small">{pr.exerciseName}</ThemedText>
+                          <ThemedText type="small" themeColor="textSecondary">
+                            {formatDate(pr.date)}
+                          </ThemedText>
+                        </View>
+                      </View>
+                      <ThemedText type="smallBold">
+                        {pr.type === 'strength'
+                          ? `${pr.bestWeight} lbs x ${pr.bestReps}`
+                          : `${pr.bestSpeed?.toFixed(1)} mph`}
+                      </ThemedText>
+                    </View>
+                  </Pressable>
+                );
+              })
             )}
           </Card>
 
@@ -222,6 +242,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    paddingVertical: Spacing.one,
+  },
+  prRowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
   },
   sessionBlock: {
     gap: Spacing.half,

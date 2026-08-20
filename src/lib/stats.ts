@@ -52,3 +52,23 @@ export function computeActivityStats(sessions: WorkoutSession[]): ActivityStats 
     firstSessionDate: sortedDates[0],
   };
 }
+
+/** Session count per week for the trailing `weeks` weeks, oldest first, current week last. */
+export function computeWeeklySessionCounts(sessions: WorkoutSession[], weeks = 8): number[] {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const currentWeekStart = new Date(today);
+  currentWeekStart.setDate(currentWeekStart.getDate() - currentWeekStart.getDay());
+
+  const counts = new Array(weeks).fill(0);
+  for (const session of sessions) {
+    const date = new Date(session.date);
+    date.setHours(0, 0, 0, 0);
+    const sessionWeekStart = new Date(date);
+    sessionWeekStart.setDate(sessionWeekStart.getDate() - sessionWeekStart.getDay());
+    const weeksAgo = Math.round((currentWeekStart.getTime() - sessionWeekStart.getTime()) / (7 * ONE_DAY_MS));
+    const index = weeks - 1 - weeksAgo;
+    if (index >= 0 && index < weeks) counts[index]++;
+  }
+  return counts;
+}

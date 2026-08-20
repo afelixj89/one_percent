@@ -4,6 +4,7 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Card } from '@/components/card';
+import { CategoryDot } from '@/components/category-dot';
 import { SectionHeader } from '@/components/section-header';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -223,7 +224,10 @@ export default function LogWorkoutScreen() {
                   {exercisesInCategory.map((ex) => (
                     <Pressable key={ex.id} onPress={() => pickExercise(ex)}>
                       <View style={[styles.exerciseRow, { borderColor: theme.border }]}>
-                        <ThemedText>{ex.name}</ThemedText>
+                        <View style={styles.exerciseNameRow}>
+                          <CategoryDot category={ex.category} />
+                          <ThemedText>{ex.name}</ThemedText>
+                        </View>
                         {prs[ex.id] && (
                           <ThemedText type="small" themeColor="textSecondary">
                             PR:{' '}
@@ -487,6 +491,11 @@ const styles = StyleSheet.create({
     padding: Spacing.three,
     borderRadius: Spacing.three,
     borderWidth: StyleSheet.hairlineWidth,
+  },
+  exerciseNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
   },
   addRow: {
     justifyContent: 'center',
